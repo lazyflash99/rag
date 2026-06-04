@@ -1,0 +1,17 @@
+# Web server
+fastapi
+uvicorn[standard]
+
+# LangChain + HuggingFace
+langchain
+langchain_community
+langchain_huggingface
+langchain_core
+
+# Database
+mysql-connector-python
+psycopg2-binary
+sqlalchemy
+
+# Utilities
+python-dotenv
