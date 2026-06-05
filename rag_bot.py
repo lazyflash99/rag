@@ -90,7 +90,7 @@ PostgreSQL SELECT query that answers the user's question.
 === IMPORTANT RULES ===
 1. Join games to price_history  : ON games.id = price_history.game_id
 2. Join games to review_history : ON games.id = review_history.game_id
-3. Game names use ILIKE '%%keyword%%' for case-insensitive fuzzy matching.
+3. Game names: Use ILIKE '%%keyword%%' for fuzzy matching. IMPORTANT: If a game name has special characters (like ™, ®, ©), the user might not type them. Always use '%%' around the main keywords (e.g., ILIKE '%%Apex%%Legends%%').
 4. Prices are in Indian Rupees (INR). Never convert to USD.
 5. Output ONLY the raw SQL query starting with SELECT.
    No markdown, no explanations, no apologies, no backticks.
@@ -99,6 +99,7 @@ PostgreSQL SELECT query that answers the user's question.
    (e.g. SELECT name AS game_name).
 8. STRICT RULE: Use EXACTLY the correct table names defined in the schema (games, price_history, review_history). Never invent tables.
 9. STRICT RULE: Generate the SQL based ONLY on the provided schema. Do not use external web knowledge or hallucinate data.
+10. POSTGRESQL ROUND RULE: When using ROUND(), you MUST cast the first argument to numeric. Example: ROUND(AVG(price)::numeric, 2). Also, use COALESCE to handle potential NULLs: ROUND(COALESCE(AVG(price), 0)::numeric, 2).
 
 === EXAMPLE QUERIES ===
 
@@ -158,7 +159,7 @@ ORDER BY name
 LIMIT 20;
 
 -- "What is the average price of Balatro?"
-SELECT g.name AS game_name, ROUND(AVG(p.price), 2) AS avg_price
+SELECT g.name AS game_name, ROUND(COALESCE(AVG(p.price), 0)::numeric, 2) AS avg_price
 FROM games g
 JOIN price_history p ON g.id = p.game_id
 WHERE g.name ILIKE '%%Balatro%%'
@@ -170,19 +171,19 @@ SELECT
     g.name AS game_name,
     latest_p.price AS current_price,
     MIN(p.price) AS lowest_ever_price,
-    ROUND(AVG(p.price), 2) AS avg_price,
+    ROUND(COALESCE(AVG(p.price), 0)::numeric, 2) AS avg_price,
     SUM(r.pos_reviews) AS total_positive,
     SUM(r.neg_reviews) AS total_negative,
-    ROUND(SUM(r.pos_reviews) * 100.0 / (SUM(r.pos_reviews) + SUM(r.neg_reviews)), 1) AS positive_pct
+    ROUND(COALESCE(SUM(r.pos_reviews) * 100.0 / NULLIF(SUM(r.pos_reviews) + SUM(r.neg_reviews), 0), 0)::numeric, 1) AS positive_pct
 FROM games g
-JOIN price_history p ON g.id = p.game_id
-JOIN review_history r ON g.id = r.game_id
-JOIN (
+LEFT JOIN price_history p ON g.id = p.game_id
+LEFT JOIN review_history r ON g.id = r.game_id
+LEFT JOIN (
     SELECT game_id, price
     FROM price_history ph
     WHERE ph.price_date = (SELECT MAX(price_date) FROM price_history WHERE game_id = ph.game_id)
 ) latest_p ON g.id = latest_p.game_id
-WHERE g.name ILIKE '%%Hollow Knight%%' OR g.name ILIKE '%%Terraria%%'
+WHERE g.name ILIKE '%%Hollow%%Knight%%' OR g.name ILIKE '%%Terraria%%'
 GROUP BY g.name, latest_p.price;
 
 -- "Which game has a better price-to-review ratio?"
@@ -190,7 +191,7 @@ SELECT
     g.name AS game_name,
     latest_p.price AS current_price,
     SUM(r.pos_reviews) AS total_positive,
-    ROUND(SUM(r.pos_reviews) * 100.0 / (SUM(r.pos_reviews) + SUM(r.neg_reviews)), 1) AS positive_pct,
+    ROUND(COALESCE(SUM(r.pos_reviews) * 100.0 / NULLIF(SUM(r.pos_reviews) + SUM(r.neg_reviews), 0), 0)::numeric, 1) AS positive_pct,
     g.category
 FROM games g
 JOIN price_history p ON g.id = p.game_id
