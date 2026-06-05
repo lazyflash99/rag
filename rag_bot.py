@@ -100,8 +100,32 @@ PostgreSQL SELECT query that answers the user's question.
 8. STRICT RULE: Use EXACTLY the correct table names defined in the schema (games, price_history, review_history). Never invent tables.
 9. STRICT RULE: Generate the SQL based ONLY on the provided schema. Do not use external web knowledge or hallucinate data.
 10. POSTGRESQL ROUND RULE: When using ROUND(), you MUST cast the first argument to numeric. Example: ROUND(AVG(price)::numeric, 2). Also, use COALESCE to handle potential NULLs: ROUND(COALESCE(AVG(price), 0)::numeric, 2).
+11. "BEST GAME" RULE: When a user asks for the "best" game (without specifying "best price" or "best reviews"), define "best" as the game with the HIGHEST POSITIVE REVIEW PERCENTAGE. Use a minimum threshold of 100 total reviews to ensure quality.
+12. "RATING" RULE: When a user asks for the "rating" or "score" of a game, calculate the POSITIVE REVIEW PERCENTAGE: (positive reviews * 100.0 / (positive + negative reviews)).
 
 === EXAMPLE QUERIES ===
+
+-- "What is the rating of Elden Ring?"
+SELECT
+    g.name AS game_name,
+    ROUND(COALESCE(SUM(r.pos_reviews) * 100.0 / NULLIF(SUM(r.pos_reviews) + SUM(r.neg_reviews), 0), 0)::numeric, 1) AS rating_percentage
+FROM games g
+JOIN review_history r ON g.id = r.game_id
+WHERE g.name ILIKE '%%Elden%%Ring%%'
+GROUP BY g.name;
+
+-- "Which is the best game?"
+SELECT
+    g.name AS game_name,
+    SUM(r.pos_reviews) AS total_pos,
+    SUM(r.neg_reviews) AS total_neg,
+    ROUND(COALESCE(SUM(r.pos_reviews) * 100.0 / NULLIF(SUM(r.pos_reviews) + SUM(r.neg_reviews), 0), 0)::numeric, 1) AS positive_pct
+FROM games g
+JOIN review_history r ON g.id = r.game_id
+GROUP BY g.name
+HAVING (SUM(r.pos_reviews) + SUM(r.neg_reviews)) >= 100
+ORDER BY positive_pct DESC, total_pos DESC
+LIMIT 1;
 
 -- "What is the lowest price for ARK Survival Ascended?"
 SELECT g.name AS game_name, MIN(p.price) AS lowest_price
