@@ -16,17 +16,23 @@ if not hf_token:
 
 os.environ["HUGGINGFACEHUB_API_TOKEN"] = hf_token
 
-DB_USER = os.getenv("DB_USER", "postgres")
-DB_PASSWORD = os.getenv("DB_PASSWORD", "")
-DB_HOST = os.getenv("DB_HOST", "localhost")
-DB_PORT = os.getenv("DB_PORT", "5432")
-DB_NAME = os.getenv("DB_NAME", "postgres")
+pg_uri = os.getenv("DATABASE_URL")
 
-pg_uri = f"postgresql+psycopg2://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+if not pg_uri:
+    DB_USER = os.getenv("DB_USER", "postgres")
+    DB_PASSWORD = os.getenv("DB_PASSWORD", "")
+    DB_HOST = os.getenv("DB_HOST", "localhost")
+    DB_PORT = os.getenv("DB_PORT", "5432")
+    DB_NAME = os.getenv("DB_NAME", "postgres")
+    pg_uri = f"postgresql+psycopg2://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+
+# SQLAlchemy requires 'postgresql+psycopg2://' for PostgreSQL
+if pg_uri.startswith("postgresql://"):
+    pg_uri = pg_uri.replace("postgresql://", "postgresql+psycopg2://", 1)
 
 try:
     db = SQLDatabase.from_uri(pg_uri, sample_rows_in_table_info=3)
-    print("[OK] Connected to database:", DB_NAME)
+    print("[OK] Connected to database.")
 except Exception as e:
     print(f"[FATAL] Database connection failed: {e}")
     sys.exit(1)
